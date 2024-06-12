@@ -5,4 +5,7 @@ vim.api.nvim_create_autocmd({ "BufNewFile", "BufRead" }, {
 	end,
 })
 
+vim.opt.tabstop = 2
+vim.opt.shiftwidth = 2
+
 require("lspconfig").mlir_lsp_server.setup({})
