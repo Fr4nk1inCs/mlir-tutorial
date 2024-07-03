@@ -1,4 +1,4 @@
-.envrc
+.direnv/
 install/
 build/
 .cache/
