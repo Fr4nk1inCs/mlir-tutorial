@@ -1,5 +1,7 @@
 add_subdirectory(parser)
 
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+
 add_executable(mlir-toy main.cpp)
 
 target_link_libraries(
