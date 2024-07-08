@@ -18,7 +18,7 @@ struct Location {
   int col;                           ///< column number.
 };
 
-using TensorShape = std::vector<uint64_t>;
+using TensorShape = std::vector<int64_t>;
 
 /// Base class for a expression
 class Expression {
@@ -39,7 +39,7 @@ public:
       : kind(kind), location(std::move(location)) {}
   virtual ~Expression() = default;
 
-  ExpressionKind get_kind() const { return kind; }
+  ExpressionKind getKind() const { return kind; }
 
   const Location &loc() { return location; }
 
@@ -59,32 +59,32 @@ public:
   NumberLiteral(Location location, double value)
       : Expression(ExpressionKind::Number, std::move(location)), value(value) {}
 
-  double get_value() { return value; }
+  double getValue() { return value; }
 
   /// LLVM-style RTTI
   static bool classof(const Expression *e) {
-    return e->get_kind() == ExpressionKind::Number;
+    return e->getKind() == ExpressionKind::Number;
   }
 };
 
 /// Tensor literal like `[[1.0 2.0] [3.0 4.0]]`
 class TensorLiteral : public Expression {
   std::vector<std::unique_ptr<Expression>> values;
-  std::vector<uint64_t> dimensions;
+  TensorShape shape;
 
 public:
   TensorLiteral(Location location,
                 std::vector<std::unique_ptr<Expression>> values,
-                std::vector<uint64_t> dimensions)
+                TensorShape shape)
       : Expression(ExpressionKind::Tensor, std::move(location)),
-        values(std::move(values)), dimensions(dimensions) {}
+        values(std::move(values)), shape(std::move(shape)) {}
 
-  llvm::ArrayRef<std::unique_ptr<Expression>> get_values() { return values; }
-  llvm::ArrayRef<uint64_t> get_dims() { return dimensions; }
+  llvm::ArrayRef<std::unique_ptr<Expression>> getValues() { return values; }
+  llvm::ArrayRef<int64_t> getShape() { return shape; }
 
   /// LLVM-style RTTI
   static bool classof(const Expression *e) {
-    return e->get_kind() == ExpressionKind::Tensor;
+    return e->getKind() == ExpressionKind::Tensor;
   }
 };
 
@@ -94,13 +94,14 @@ class Variable : public Expression {
 
 public:
   Variable(Location location, std::string name)
-      : Expression(ExpressionKind::Variable, std::move(location)), name(name) {}
+      : Expression(ExpressionKind::Variable, std::move(location)),
+        name(std::move(name)) {}
 
-  llvm::StringRef get_name() { return name; }
+  llvm::StringRef getName() { return name; }
 
   /// LLVM-style RTTI
   static bool classof(const Expression *e) {
-    return e->get_kind() == ExpressionKind::Variable;
+    return e->getKind() == ExpressionKind::Variable;
   }
 };
 
@@ -108,22 +109,22 @@ public:
 class VariableDecl : public Expression {
   std::string name;
   TensorShape shape;
-  std::unique_ptr<Expression> init_value;
+  std::unique_ptr<Expression> initValue;
 
 public:
   VariableDecl(Location location, std::string name, TensorShape shape,
-               std::unique_ptr<Expression> init_value)
+               std::unique_ptr<Expression> initValue)
       : Expression(ExpressionKind::VariableDecl, std::move(location)),
-        name(name), shape(std::move(shape)), init_value(std::move(init_value)) {
-  }
+        name(std::move(name)), shape(std::move(shape)),
+        initValue(std::move(initValue)) {}
 
-  llvm::StringRef get_name() { return name; }
-  Expression *get_init_value() { return init_value.get(); }
-  const TensorShape &get_shape() { return shape; }
+  llvm::StringRef getName() { return name; }
+  Expression *getInitValue() { return initValue.get(); }
+  const TensorShape &getShape() { return shape; }
 
   /// LLVM-style RTTI
   static bool classof(const Expression *e) {
-    return e->get_kind() == ExpressionKind::VariableDecl;
+    return e->getKind() == ExpressionKind::VariableDecl;
   }
 };
 
@@ -137,7 +138,7 @@ public:
       : Expression(ExpressionKind::Return, std::move(location)),
         value(std::move(value)) {}
 
-  std::optional<Expression *> get_value() {
+  std::optional<Expression *> getValue() {
     if (value.has_value())
       return value->get();
     return std::nullopt;
@@ -145,7 +146,7 @@ public:
 
   /// LLVM-style RTTI
   static bool classof(const Expression *e) {
-    return e->get_kind() == ExpressionKind::Return;
+    return e->getKind() == ExpressionKind::Return;
   }
 };
 
@@ -158,11 +159,11 @@ public:
       : Expression(ExpressionKind::Print, std::move(location)),
         arg(std::move(arg)) {}
 
-  Expression *get_arg() { return arg.get(); }
+  Expression *getArg() { return arg.get(); }
 
   /// LLVM-style RTTI
   static bool classof(const Expression *e) {
-    return e->get_kind() == ExpressionKind::Print;
+    return e->getKind() == ExpressionKind::Print;
   }
 };
 
@@ -175,11 +176,11 @@ public:
       : Expression(ExpressionKind::Transpose, std::move(location)),
         arg(std::move(arg)) {}
 
-  Expression *get_arg() { return arg.get(); }
+  Expression *getArg() { return arg.get(); }
 
   /// LLVM-style RTTI
   static bool classof(const Expression *e) {
-    return e->get_kind() == ExpressionKind::Transpose;
+    return e->getKind() == ExpressionKind::Transpose;
   }
 };
 
@@ -195,13 +196,13 @@ public:
       : Expression(ExpressionKind::Binary, std::move(location)), op(op),
         lhs(std::move(lhs)), rhs(std::move(rhs)) {}
 
-  char get_op() { return op; }
-  Expression *get_lhs() { return lhs.get(); }
-  Expression *get_rhs() { return rhs.get(); }
+  char getOp() { return op; }
+  Expression *getLhs() { return lhs.get(); }
+  Expression *getRhs() { return rhs.get(); }
 
   /// LLVM-style RTTI
   static bool classof(const Expression *e) {
-    return e->get_kind() == ExpressionKind::Binary;
+    return e->getKind() == ExpressionKind::Binary;
   }
 };
 
@@ -213,15 +214,15 @@ class CallExpr : public Expression {
 public:
   CallExpr(Location location, std::string function,
            std::vector<std::unique_ptr<Expression>> args)
-      : Expression(ExpressionKind::Call, std::move(location)), callee(function),
-        args(std::move(args)) {}
+      : Expression(ExpressionKind::Call, std::move(location)),
+        callee(std::move(function)), args(std::move(args)) {}
 
-  llvm::StringRef get_callee() { return callee; }
-  llvm::ArrayRef<std::unique_ptr<Expression>> get_args() { return args; }
+  llvm::StringRef getCallee() { return callee; }
+  llvm::ArrayRef<std::unique_ptr<Expression>> getArgs() { return args; }
 
   /// LLVM-style RTTI
   static bool classof(const Expression *e) {
-    return e->get_kind() == ExpressionKind::Call;
+    return e->getKind() == ExpressionKind::Call;
   }
 };
 
@@ -235,10 +236,11 @@ class Prototype {
 public:
   Prototype(Location location, std::string name,
             std::vector<std::unique_ptr<Variable>> params)
-      : location(std::move(location)), name(name), params(std::move(params)) {}
+      : location(std::move(location)), name(std::move(name)),
+        params(std::move(params)) {}
 
-  llvm::StringRef get_name() { return name; }
-  llvm::ArrayRef<std::unique_ptr<Variable>> get_params() { return params; }
+  llvm::StringRef getName() { return name; }
+  llvm::ArrayRef<std::unique_ptr<Variable>> getParams() { return params; }
   const Location &loc() { return location; }
 };
 
@@ -247,12 +249,16 @@ class Function {
   std::unique_ptr<ExpressionList> body;
 
 public:
+  Function(const Function &) = delete;
+  Function(Function &&) = default;
+  Function &operator=(const Function &) = delete;
+  Function &operator=(Function &&) = default;
   Function(std::unique_ptr<Prototype> prototype,
            std::unique_ptr<ExpressionList> body)
       : prototype(std::move(prototype)), body(std::move(body)) {}
 
-  Prototype *get_prototype() { return prototype.get(); }
-  ExpressionList *get_body() { return body.get(); }
+  Prototype *getPrototype() { return prototype.get(); }
+  ExpressionList *getBody() { return body.get(); }
 };
 
 class Module {

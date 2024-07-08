@@ -1,4 +1,4 @@
-#include "AST.hpp"
+#include "Toy/AST.hpp"
 
 #include "llvm/ADT/Twine.h"
 #include "llvm/ADT/TypeSwitch.h"
@@ -7,13 +7,24 @@
 
 using namespace toy::AST;
 
-namespace toy::AST {
+namespace {
 
 struct Indent {
-  int &level;
   Indent(int &level) : level(level) { ++level; }
   ~Indent() { level--; }
+
+private:
+  int &level;
 };
+
+template <class T> static std::string loc(T *node) {
+  const auto &loc = node->loc();
+  return (llvm::Twine("@") + *loc.file + ":" + llvm::Twine(loc.line) + ":" +
+          llvm::Twine(loc.col))
+      .str();
+}
+
+} // namespace
 
 /// Helper class that implement the AST tree traversal and print the nodes along
 /// the way. The only data member is the current indentation level.
@@ -37,7 +48,7 @@ private:
   void dump(NumberLiteral *num);
   void dump(TensorLiteral *tensor);
 
-  void print_indent() const {
+  void printIndent() const {
     for (int i = 0; i < level; ++i)
       llvm::errs() << "  ";
   }
@@ -47,14 +58,7 @@ private:
 
 #define INDENT()                                                               \
   Indent level_(level);                                                        \
-  print_indent();
-
-template <class T> static std::string loc(T *node) {
-  const auto &loc = node->loc();
-  return (llvm::Twine("@") + *loc.file + ":" + llvm::Twine(loc.line) + ":" +
-          llvm::Twine(loc.col))
-      .str();
-}
+  printIndent();
 
 void Dumper::dump(const TensorShape &shape) {
   llvm::errs() << "<";
@@ -70,47 +74,47 @@ void Dumper::dump(Expression *expr) {
       .Default([&](Expression *) {
         // No match, fallback to a generic message
         INDENT();
-        llvm::errs() << "<unknown Expr, kind " << expr->get_kind() << ">\n";
+        llvm::errs() << "<unknown Expr, kind " << expr->getKind() << ">\n";
       });
 }
 
 void Dumper::dump(PrintExpr *expr) {
   INDENT();
   llvm::errs() << "Print [ " << loc(expr) << "\n";
-  dump(expr->get_arg());
-  print_indent();
+  dump(expr->getArg());
+  printIndent();
   llvm::errs() << "]\n";
 }
 
 void Dumper::dump(CallExpr *expr) {
   INDENT();
-  llvm::errs() << "Call " << expr->get_callee() << "' [ " << loc(expr) << "\n";
-  for (auto &arg : expr->get_args())
+  llvm::errs() << "Call " << expr->getCallee() << "' [ " << loc(expr) << "\n";
+  for (auto &arg : expr->getArgs())
     dump(arg.get());
-  print_indent();
+  printIndent();
   llvm::errs() << "]\n";
 }
 
 void Dumper::dump(BinaryExpr *expr) {
   INDENT();
-  llvm::errs() << "BinOp: " << expr->get_op() << " " << loc(expr) << "\n";
-  dump(expr->get_lhs());
-  dump(expr->get_rhs());
+  llvm::errs() << "BinOp: " << expr->getOp() << " " << loc(expr) << "\n";
+  dump(expr->getLhs());
+  dump(expr->getRhs());
 }
 
 void Dumper::dump(TransposeExpr *expr) {
   INDENT();
   llvm::errs() << "Call 'transpose' [ " << loc(expr) << "\n";
-  dump(expr->get_arg());
-  print_indent();
+  dump(expr->getArg());
+  printIndent();
   llvm::errs() << "]\n";
 }
 
 void Dumper::dump(ReturnExpr *expr) {
   INDENT();
   llvm::errs() << "Return " << loc(expr) << "\n";
-  if (expr->get_value().has_value())
-    dump(expr->get_value().value());
+  if (expr->getValue().has_value())
+    dump(expr->getValue().value());
   else {
     INDENT();
     llvm::errs() << "(void)\n";
@@ -119,20 +123,20 @@ void Dumper::dump(ReturnExpr *expr) {
 
 void Dumper::dump(VariableDecl *decl) {
   INDENT();
-  llvm::errs() << "VarDecl " << decl->get_name();
-  dump(decl->get_shape());
+  llvm::errs() << "VarDecl " << decl->getName();
+  dump(decl->getShape());
   llvm::errs() << " " << loc(decl) << "\n";
-  dump(decl->get_init_value());
+  dump(decl->getInitValue());
 }
 
 void Dumper::dump(Variable *var) {
   INDENT();
-  llvm::errs() << "var: " << var->get_name() << " " << loc(var) << "\n";
+  llvm::errs() << "var: " << var->getName() << " " << loc(var) << "\n";
 }
 
 void Dumper::dump(NumberLiteral *num) {
   INDENT();
-  llvm::errs() << "number: " << num->get_value() << " " << loc(num) << "\n";
+  llvm::errs() << "number: " << num->getValue() << " " << loc(num) << "\n";
 }
 
 /// Helper function to print recursively a tensor.
@@ -142,7 +146,7 @@ void Dumper::dump(NumberLiteral *num) {
 void dumpTensorHelper(Expression *tensorOrNumber) {
   // Number
   if (auto *number = llvm::dyn_cast<NumberLiteral>(tensorOrNumber)) {
-    llvm::errs() << number->get_value();
+    llvm::errs() << number->getValue();
     return;
   }
   // Tensor
@@ -155,12 +159,12 @@ void dumpTensorHelper(Expression *tensorOrNumber) {
 
   // Print shape first
   llvm::errs() << "<";
-  llvm::interleaveComma(tensor->get_dims(), llvm::errs());
+  llvm::interleaveComma(tensor->getShape(), llvm::errs());
   llvm::errs() << ">";
 
   // Print values
   llvm::errs() << "[ ";
-  llvm::interleaveComma(tensor->get_values(), llvm::errs(),
+  llvm::interleaveComma(tensor->getValues(), llvm::errs(),
                         [&](auto &expr) { dumpTensorHelper(expr.get()); });
   llvm::errs() << " ]";
 }
@@ -177,25 +181,25 @@ void Dumper::dump(ExpressionList *exprs) {
   llvm::errs() << "Block {\n";
   for (auto &expr : *exprs)
     dump(expr.get());
-  print_indent();
+  printIndent();
   llvm::errs() << "} // Block\n";
 }
 
 void Dumper::dump(Prototype *proto) {
   INDENT();
-  llvm::errs() << "Proto '" << proto->get_name() << "' " << loc(proto) << "\n";
-  print_indent();
+  llvm::errs() << "Proto '" << proto->getName() << "' " << loc(proto) << "\n";
+  printIndent();
   llvm::errs() << "Params: [";
-  llvm::interleaveComma(proto->get_params(), llvm::errs(),
-                        [](auto &param) { llvm::errs() << param->get_name(); });
+  llvm::interleaveComma(proto->getParams(), llvm::errs(),
+                        [](auto &param) { llvm::errs() << param->getName(); });
   llvm::errs() << "]\n";
 }
 
 void Dumper::dump(Function *func) {
   INDENT();
   llvm::errs() << "Function \n";
-  dump(func->get_prototype());
-  dump(func->get_body());
+  dump(func->getPrototype());
+  dump(func->getBody());
 }
 
 void Dumper::dump(Module *module) {
@@ -205,6 +209,4 @@ void Dumper::dump(Module *module) {
     dump(&func);
 }
 
-void dump(Module &module) { Dumper().dump(&module); };
-
-} // namespace toy::AST
+void toy::AST::dump(Module &module) { Dumper().dump(&module); };

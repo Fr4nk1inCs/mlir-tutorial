@@ -14,8 +14,8 @@
 #ifndef TOY_PARSER_H
 #define TOY_PARSER_H
 
-#include "AST.hpp"
-#include "Lexer.hpp"
+#include "Parser/Lexer.hpp"
+#include "Toy/AST.hpp"
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
@@ -95,7 +95,7 @@ private:
     // Hold the list of values at this nesting level.
     std::vector<std::unique_ptr<AST::Expression>> values;
     // Hold the dimensions for all the nesting inside this level.
-    std::vector<uint64_t> dims;
+    std::vector<int64_t> dims;
     do {
       // We can have either another nested array or a number literal.
       if (lexer.getCurToken() == '[') {
@@ -139,7 +139,7 @@ private:
                                            "inside literal expression");
 
       // Append the nested dimensions to the current level
-      auto firstDims = firstLiteral->get_dims();
+      auto firstDims = firstLiteral->getShape();
       dims.insert(dims.end(), firstDims.begin(), firstDims.end());
 
       // Sanity check that shape is uniform across all elements of the list.
@@ -148,7 +148,7 @@ private:
         if (!exprLiteral)
           return parseError<AST::Expression>("uniform well-nested dimensions",
                                              "inside literal expression");
-        if (exprLiteral->get_dims() != firstDims)
+        if (exprLiteral->getShape() != firstDims)
           return parseError<AST::Expression>("uniform well-nested dimensions",
                                              "inside literal expression");
       }

@@ -13,7 +13,7 @@
 #ifndef TOY_LEXER_H
 #define TOY_LEXER_H
 
-#include "AST.hpp"
+#include "Toy/AST.hpp"
 
 #include "llvm/ADT/StringRef.h"
 

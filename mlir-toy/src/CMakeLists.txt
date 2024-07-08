@@ -1,4 +1,4 @@
-add_subdirectory(parser)
+add_subdirectory(Utils)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
@@ -6,7 +6,7 @@ add_executable(mlir-toy main.cpp)
 
 target_link_libraries(
   mlir-toy
-  parser
+  ToyASTDumper
   MLIRIR
   MLIRParser
   MLIRFuncDialect

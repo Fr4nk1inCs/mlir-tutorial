@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "AST.hpp"
-#include "Lexer.hpp"
-#include "Parser.hpp"
+#include "Parser/Lexer.hpp"
+#include "Parser/Parser.hpp"
+#include "Toy/AST.hpp"
 
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/CommandLine.h"
